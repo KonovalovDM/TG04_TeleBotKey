@@ -1,74 +1,54 @@
-import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.filters import Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 import asyncio
+from aiogram import Bot, Dispatcher
+from aiogram.filters import Command
+from aiogram.types import Message, CallbackQuery
+from keyboards import get_main_menu, get_links_menu, get_dynamic_menu, get_dynamic_options
 from config import TOKEN
 
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-
-# Инициализация бота и диспетчера
+# Инициализация бота
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Задание 1: Простое меню с кнопками
+# Задание 1: Простое меню
 @dp.message(Command("start"))
-async def start_command(message: types.Message):
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("Привет"), KeyboardButton("Пока"))
-    await message.answer("Выберите опцию:", reply_markup=keyboard)
+async def start_command(message: Message):
+    await message.answer("Выберите действие:", reply_markup=get_main_menu())
 
-@dp.message()
-async def handle_text_buttons(message: types.Message):
-    if message.text == "Привет":
-        await message.answer(f"Привет, {message.from_user.first_name}!")
-    elif message.text == "Пока":
-        await message.answer(f"До свидания, {message.from_user.first_name}!")
+@dp.message(lambda msg: msg.text == "Привет")
+async def hello_command(message: Message):
+    await message.answer(f"Привет, {message.from_user.first_name}!")
+
+@dp.message(lambda msg: msg.text == "Пока")
+async def goodbye_command(message: Message):
+    await message.answer(f"До свидания, {message.from_user.first_name}!")
 
 # Задание 2: Кнопки с URL-ссылками
 @dp.message(Command("links"))
-async def links_command(message: types.Message):
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    keyboard.add(
-        InlineKeyboardButton(text="Новости", url="https://news.yandex.ru"),
-        InlineKeyboardButton(text="Музыка", url="https://music.yandex.ru"),
-        InlineKeyboardButton(text="Видео", url="https://youtube.com")
-    )
-    await message.answer("Вот ссылки на интересные ресурсы:", reply_markup=keyboard)
+async def links_command(message: Message):
+    await message.answer("Выберите ссылку:", reply_markup=get_links_menu())
 
 # Задание 3: Динамическое изменение клавиатуры
 @dp.message(Command("dynamic"))
-async def dynamic_command(message: types.Message):
-    keyboard = InlineKeyboardMarkup()
-    keyboard.add(InlineKeyboardButton(text="Показать больше", callback_data="show_more"))
-    await message.answer("Нажмите на кнопку, чтобы увидеть больше опций:", reply_markup=keyboard)
+async def dynamic_command(message: Message):
+    await message.answer("Нажмите кнопку ниже:", reply_markup=get_dynamic_menu())
 
-@dp.callback_query(lambda callback_query: callback_query.data == "show_more")
-async def show_more_options(callback_query: types.CallbackQuery):
-    keyboard = InlineKeyboardMarkup()
-    keyboard.add(
-        InlineKeyboardButton(text="Опция 1", callback_data="option_1"),
-        InlineKeyboardButton(text="Опция 2", callback_data="option_2")
-    )
-    await bot.edit_message_text(
-        text="Выберите одну из опций:",
-        chat_id=callback_query.message.chat.id,
-        message_id=callback_query.message.message_id,
-        reply_markup=keyboard
-    )
+@dp.callback_query(lambda call: call.data == "show_more")
+async def show_more_callback(callback: CallbackQuery):
+    await callback.message.edit_text("Выберите одну из опций:", reply_markup=get_dynamic_options())
+    await callback.answer()
 
-@dp.callback_query(lambda callback_query: callback_query.data in ["option_1", "option_2"])
-async def handle_options(callback_query: types.CallbackQuery):
-    option_text = "Опция 1" if callback_query.data == "option_1" else "Опция 2"
-    await callback_query.message.answer(f"Вы выбрали: {option_text}")
+@dp.callback_query(lambda call: call.data in ["option_1", "option_2"])
+async def option_selected_callback(callback: CallbackQuery):
+    option_text = "Опция 1" if callback.data == "option_1" else "Опция 2"
+    await callback.message.answer(f"Вы выбрали: {option_text}")
+    await callback.answer()
 
 # Запуск бота
 async def main():
     try:
         await dp.start_polling(bot)
+    except Exception as e:
+        print(f"Ошибка: {e}")
     finally:
         await bot.session.close()
 
